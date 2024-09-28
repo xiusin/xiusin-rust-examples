@@ -1,28 +1,19 @@
 use async_std::task;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{
-    sync::{Mutex, Once},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 
-const DB_URL: &str = "postgres://postgres:yuAU702G!@124.222.103.232/postgres";
-
-struct Singleton {
-    db: DatabaseConnection,
+pub async fn db() -> &'static DatabaseConnection {
+    println!("db exec 1");
+    static DB: OnceLock<Arc<DatabaseConnection>> = OnceLock::new();
+    // println!("db exec 2");
+    DB.get_or_init(|| task::block_on(init_db()))
 }
 
-lazy_static::lazy_static! {
-    static ref SINGLETON: Mutex<Singleton> = {
-        // 阻塞获取
-         let db = task::block_on(init_db()).await;
-         Mutex::new(Singleton { db: db })
-    };
-    static ref INIT: Once = Once::new();
-}
-
-pub async fn init_db() -> Singleton {
-    let mut opt = ConnectOptions::new(DB_URL);
-
+async fn init_db() -> Arc<DatabaseConnection> {
+    let mut opt = ConnectOptions::new("postgres://postgres:yuAU702G!@124.222.103.232/postgres");
     opt.max_connections(100)
         .min_connections(5)
         .connect_timeout(Duration::from_secs(8))
@@ -34,5 +25,5 @@ pub async fn init_db() -> Singleton {
 
     let db = Database::connect(opt).await.unwrap();
 
-    return db;
+    Arc::new(db)
 }
